@@ -201,7 +201,8 @@
                         Log.debug("adaptive playlist:\n" + string);
                     }
                     // adaptative playlist, extract levels from playlist, get them and parse them
-                    _levels = Manifest.extractLevels(_hls, string, _url);
+					var filterNonVideo:Boolean = true;
+                    _levels = Manifest.extractLevels(_hls, string, _url, filterNonVideo);
                     // retrieve start level from helper function
                     _current_level = startlevel;
                     _hls.dispatchEvent(new HLSEvent(HLSEvent.MANIFEST_PARSED, _levels));

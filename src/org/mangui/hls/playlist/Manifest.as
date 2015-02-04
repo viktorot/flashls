@@ -2,18 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  package org.mangui.hls.playlist {
-    import org.mangui.hls.HLS;
-    import org.mangui.hls.event.HLSEvent;
-    import org.mangui.hls.event.HLSError;
-    import org.mangui.hls.utils.Hex;
-
     import flash.events.*;
     import flash.net.*;
     import flash.utils.ByteArray;
-
+    
+    import org.mangui.hls.HLS;
     import org.mangui.hls.constant.HLSTypes;
-    import org.mangui.hls.model.Level;
+    import org.mangui.hls.event.HLSError;
+    import org.mangui.hls.event.HLSEvent;
     import org.mangui.hls.model.Fragment;
+    import org.mangui.hls.model.Level;
+    import org.mangui.hls.utils.Hex;
 
     CONFIG::LOGGING {
         import org.mangui.hls.utils.Log;
@@ -298,11 +297,12 @@
         };
 
         /** Extract levels from manifest data. **/
-        public static function extractLevels(hls : HLS, data : String, base : String = '') : Vector.<Level> {
+        public static function extractLevels(hls : HLS, data : String, base : String = '', filter:Boolean = false) : Vector.<Level> {
             var levels : Array = [];
             var level : Level;
             var lines : Array = data.split("\n");
             var level_found : Boolean = false;
+			var level_hasVideo : Boolean = false;
             var i : int = 0;
             while (i < lines.length) {
                 var line : String = lines[i++];
@@ -323,6 +323,7 @@
                             var dim : Array = res.split('x');
                             level.width = parseInt(dim[0]);
                             level.height = parseInt(dim[1]);
+							level_hasVideo = true;
                         } else if (param.indexOf('CODECS') > -1) {
                             if (line.indexOf('avc1') > -1) {
                                 level.codec_h264 = true;
@@ -341,8 +342,12 @@
                         }
                     }
                 } else if (level_found == true) {
-                    level.url = _extractURL(line, base);
-                    levels.push(level);
+					// filter out profiles that don't have video 
+					if(filter && level_hasVideo == true) {
+                    	level.url = _extractURL(line, base);
+                    	levels.push(level);
+					}
+					level_hasVideo = false;
                     level_found = false;
                 }
             }
