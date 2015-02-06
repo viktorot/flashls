@@ -584,6 +584,21 @@
             _setPlaybackState(HLSPlayStates.IDLE);
             _setSeekState(HLSSeekStates.IDLE);
         };
+		
+		/**
+		 *	Pausing the network stream so that the loaded data is not cleared 
+		 * 	Stopping the fragment loader, becase the stream is in the stopped state (we don't load any more data) 
+		 **/
+		public function close2() : void {
+			CONFIG::LOGGING {
+				Log.info("HLSNetStream:close2");
+			}
+			super.pause();
+			_timer.stop();
+			_fragmentLoader.stop();
+			_setPlaybackState(HLSPlayStates.IDLE);
+			_setSeekState(HLSSeekStates.IDLE);
+		};
 
         public function dispose_() : void {
             close();

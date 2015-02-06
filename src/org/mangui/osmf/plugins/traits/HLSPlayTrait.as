@@ -4,6 +4,7 @@
  package org.mangui.osmf.plugins.traits {
     import org.mangui.hls.HLS;
     import org.mangui.hls.event.HLSEvent;
+    import org.mangui.hls.stream.HLSNetStream;
     import org.osmf.traits.PlayState;
     import org.osmf.traits.PlayTrait;
 
@@ -31,7 +32,7 @@
             _hls.removeEventListener(HLSEvent.PLAYBACK_COMPLETE, _playbackComplete);
             super.dispose();
         }
-
+	
         override protected function playStateChangeStart(newPlayState : String) : void {
             CONFIG::LOGGING {
             Log.info("HLSPlayTrait:playStateChangeStart:" + newPlayState);
@@ -50,10 +51,18 @@
                     break;
                 case PlayState.STOPPED:
                     streamStarted = false;
-                    _hls.stream.close();
+					_hls.stream.close();
                     break;
+				case "STOP_LIVE":
+					streamStarted = false;
+					(_hls.stream as HLSNetStream).close2();
+					break;
             }
         }
+		
+		public function stop2(): void {
+			playStateChangeStart("STOP_LIVE");
+		}
 
         /** playback complete handler **/
         private function _playbackComplete(event : HLSEvent) : void {
