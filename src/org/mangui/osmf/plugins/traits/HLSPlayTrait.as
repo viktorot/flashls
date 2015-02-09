@@ -53,7 +53,7 @@
                     streamStarted = false;
 					_hls.stream.close();
                     break;
-				case "STOP_LIVE":
+				case HLSPlayState.STOPPED_FRAGMENT_LOAD:
 					streamStarted = false;
 					(_hls.stream as HLSNetStream).close2();
 					break;
@@ -61,7 +61,7 @@
         }
 		
 		public function stop2(): void {
-			playStateChangeStart("STOP_LIVE");
+			playStateChangeStart(HLSPlayState.STOPPED_FRAGMENT_LOAD);
 		}
 
         /** playback complete handler **/
