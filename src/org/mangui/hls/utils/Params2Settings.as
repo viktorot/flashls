@@ -31,6 +31,7 @@
         _paramMap["capleveltostage"] = "capLevelToStage";
         _paramMap["maxlevelcappingmode"] = "maxLevelCappingMode";
         _paramMap["usehardwarevideodecoder"] = "useHardwareVideoDecoder";
+		_paramMap["bkdFilterAudioOnly"] = "filterAudioOnly";
         _paramMap["info"] = "logInfo";
         _paramMap["debug"] = "logDebug";
         _paramMap["debug2"] = "logDebug2";

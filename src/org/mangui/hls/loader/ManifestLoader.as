@@ -2,21 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  package org.mangui.hls.loader {
-    import org.mangui.hls.playlist.DataUri;
-    import org.mangui.hls.playlist.AltAudioTrack;
-    import org.mangui.hls.playlist.Manifest;
-    import org.mangui.hls.constant.HLSPlayStates;
-    import org.mangui.hls.constant.HLSTypes;
-    import org.mangui.hls.event.HLSEvent;
-    import org.mangui.hls.event.HLSError;
-    import org.mangui.hls.model.Level;
-    import org.mangui.hls.model.Fragment;
-    import org.mangui.hls.HLS;
-    import org.mangui.hls.HLSSettings;
-
     import flash.events.*;
     import flash.net.*;
     import flash.utils.*;
+    
+    import org.mangui.hls.HLS;
+    import org.mangui.hls.HLSSettings;
+    import org.mangui.hls.constant.HLSPlayStates;
+    import org.mangui.hls.constant.HLSTypes;
+    import org.mangui.hls.event.HLSError;
+    import org.mangui.hls.event.HLSEvent;
+    import org.mangui.hls.model.Fragment;
+    import org.mangui.hls.model.Level;
+    import org.mangui.hls.playlist.AltAudioTrack;
+    import org.mangui.hls.playlist.DataUri;
+    import org.mangui.hls.playlist.Manifest;
 
     CONFIG::LOGGING {
         import org.mangui.hls.utils.Log;
@@ -201,8 +201,8 @@
                         Log.debug("adaptive playlist:\n" + string);
                     }
                     // adaptative playlist, extract levels from playlist, get them and parse them
-					var filterNonVideo:Boolean = true;
-                    _levels = Manifest.extractLevels(_hls, string, _url, filterNonVideo);
+					var filterAudioOnly:Boolean = HLSSettings.filterAudioOnly;
+                    _levels = Manifest.extractLevels(_hls, string, _url, filterAudioOnly);
                     // retrieve start level from helper function
                     _current_level = startlevel;
                     _hls.dispatchEvent(new HLSEvent(HLSEvent.MANIFEST_PARSED, _levels));

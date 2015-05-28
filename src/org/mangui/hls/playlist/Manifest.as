@@ -342,13 +342,19 @@
                         }
                     }
                 } else if (level_found == true) {
-					// filter out profiles that don't have video 
-					if(filter && level_hasVideo == true) {
-                    	level.url = _extractURL(line, base);
-                    	levels.push(level);
+					if(filter) {
+						// filter out profiles that don't have video 
+						if(level_hasVideo == true) {
+	                    	level.url = _extractURL(line, base);
+	                    	levels.push(level);
+						}
+						level_hasVideo = false;
+	                    level_found = false;
 					}
-					level_hasVideo = false;
-                    level_found = false;
+					else {
+						level.url = _extractURL(line, base);
+						levels.push(level);
+					}
                 }
             }
             var levelsLength : int = levels.length;

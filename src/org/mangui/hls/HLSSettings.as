@@ -162,5 +162,10 @@ package org.mangui.hls {
          * Default is true.
          */
         public static var logError : Boolean = true;
+		/**
+		 * Fiter out all levels for which no video was detected (audio only)
+		 * 
+		 */ 
+		public static var filterAudioOnly : Boolean = false;
     }
 }
