@@ -2,30 +2,30 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  package org.mangui.hls.loader {
+    import flash.events.*;
+    import flash.net.*;
+    import flash.utils.ByteArray;
+    import flash.utils.Timer;
     import flash.utils.getTimer;
+    
+    import org.mangui.hls.HLS;
+    import org.mangui.hls.HLSSettings;
+    import org.mangui.hls.constant.HLSTypes;
     import org.mangui.hls.controller.AudioTrackController;
     import org.mangui.hls.controller.AutoLevelController;
-    import org.mangui.hls.HLSSettings;
-    import org.mangui.hls.event.HLSLoadMetrics;
-    import org.mangui.hls.constant.HLSTypes;
-    import org.mangui.hls.flv.FLVTag;
+    import org.mangui.hls.demux.DemuxHelper;
+    import org.mangui.hls.demux.Demuxer;
     import org.mangui.hls.event.HLSError;
     import org.mangui.hls.event.HLSEvent;
-    import org.mangui.hls.demux.Demuxer;
-    import org.mangui.hls.demux.DemuxHelper;
+    import org.mangui.hls.event.HLSLoadMetrics;
+    import org.mangui.hls.flv.FLVTag;
     import org.mangui.hls.model.AudioTrack;
-    import org.mangui.hls.HLS;
     import org.mangui.hls.model.Fragment;
     import org.mangui.hls.model.FragmentData;
     import org.mangui.hls.model.FragmentMetrics;
     import org.mangui.hls.model.Level;
     import org.mangui.hls.utils.AES;
     import org.mangui.hls.utils.PTS;
-
-    import flash.events.*;
-    import flash.net.*;
-    import flash.utils.ByteArray;
-    import flash.utils.Timer;
 
     CONFIG::LOGGING {
         import org.mangui.hls.utils.Log;
@@ -564,8 +564,13 @@
                 the end of the Playlist file */
                 var maxLivePosition : Number = Math.max(0, _levels[level].duration - 3 * _levels[level].averageduration);
                 if (position == -1) {
-                    // seek 3 fragments from end
-                    seek_position = maxLivePosition;
+					if(HLSSettings.startFromFirstFragment) {
+						seek_position = -1
+					}
+					else {
+                    	// seek 3 fragments from end
+                    	seek_position = maxLivePosition;
+					}
                 } else {
                     seek_position = Math.min(position, maxLivePosition);
                 }

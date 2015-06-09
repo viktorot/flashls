@@ -164,8 +164,11 @@ package org.mangui.hls {
         public static var logError : Boolean = true;
 		/**
 		 * Fiter out all levels for which no video was detected (audio only)
-		 * 
 		 */ 
 		public static var filterAudioOnly : Boolean = false;
+		/**
+		 * Start stream from the first fragment (for live only)
+		 */ 
+		public static var startFromFirstFragment : Boolean = false;
     }
 }

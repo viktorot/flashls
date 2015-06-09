@@ -32,6 +32,7 @@
         _paramMap["maxlevelcappingmode"] = "maxLevelCappingMode";
         _paramMap["usehardwarevideodecoder"] = "useHardwareVideoDecoder";
 		_paramMap["bkdFilterAudioOnly"] = "filterAudioOnly";
+		_paramMap["bkdStartFromFirstFragment"] = "startFromFirstFragment";
         _paramMap["info"] = "logInfo";
         _paramMap["debug"] = "logDebug";
         _paramMap["debug2"] = "logDebug2";
