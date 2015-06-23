@@ -4,6 +4,7 @@
  package org.mangui.osmf.plugins.traits {
     import org.mangui.hls.HLS;
     import org.mangui.hls.event.HLSEvent;
+    import org.mangui.hls.model.Level;
     import org.osmf.traits.DynamicStreamTrait;
     import org.osmf.utils.OSMFStrings;
 
@@ -82,5 +83,10 @@
             setCurrentIndex(newLevel);
             setSwitching(false, newLevel);
         };
+		
+		/** Return the metadata for the current level **/
+		public function currentLevel():Level {
+			return _hls.levels[_hls.currentLevel];
+		}
     }
 }
