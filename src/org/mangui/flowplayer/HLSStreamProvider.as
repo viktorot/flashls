@@ -2,29 +2,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 package org.mangui.flowplayer {
-    import org.mangui.hls.event.HLSEvent;
-    import org.mangui.hls.utils.Params2Settings;
 
     import flash.display.DisplayObject;
+    import flash.media.Video;
     import flash.net.NetConnection;
     import flash.net.NetStream;
+    import flash.system.Security;
     import flash.utils.Dictionary;
-    import flash.media.Video;
-
-    import org.mangui.hls.HLS;
-    import org.mangui.hls.constant.HLSPlayStates;
-    import org.flowplayer.model.Plugin;
-    import org.flowplayer.model.PluginModel;
-    import org.flowplayer.view.Flowplayer;
     import org.flowplayer.controller.StreamProvider;
     import org.flowplayer.controller.TimeProvider;
     import org.flowplayer.controller.VolumeController;
     import org.flowplayer.model.Clip;
-    import org.flowplayer.model.ClipType;
+    import org.flowplayer.model.ClipError;
     import org.flowplayer.model.ClipEvent;
     import org.flowplayer.model.ClipEventType;
+    import org.flowplayer.model.ClipType;
     import org.flowplayer.model.Playlist;
+    import org.flowplayer.model.Plugin;
+    import org.flowplayer.model.PluginModel;
+    import org.flowplayer.view.Flowplayer;
     import org.flowplayer.view.StageVideoWrapper;
+    import org.mangui.hls.constant.HLSPlayStates;
+    import org.mangui.hls.event.HLSEvent;
+    import org.mangui.hls.HLS;
+    import org.mangui.hls.utils.JSURLLoader;
+    import org.mangui.hls.utils.JSURLStream;
+    import org.mangui.hls.utils.Params2Settings;
 
     CONFIG::LOGGING {
         import org.mangui.hls.utils.Log;
@@ -40,15 +43,15 @@ package org.mangui.flowplayer {
         /** reference to the framework. **/
         private var _hls : HLS;
         // event values
-        private var _position : Number = 0;
         private var _duration : Number = 0;
         private var _durationCapped : Number = 0;
-        private var _bufferedTime : Number = 0;
+        private var _clipStart : Number = 0;
         private var _videoWidth : int = -1;
         private var _videoHeight : int = -1;
         private var _isManifestLoaded : Boolean = false;
         private var _pauseAfterStart : Boolean;
         private var _seekable : Boolean = false;
+        private var _streamAttached : Boolean = false;
 
         public function getDefaultConfig() : Object {
             return null;
@@ -65,21 +68,29 @@ package org.mangui.flowplayer {
             CONFIG::LOGGING {
                 Log.info("onLoad()");
             }
+            Security.allowDomain("*");
             _player = player;
             _hls = new HLS();
             _hls.stage = player.screen.getDisplayObject().stage;
             _hls.addEventListener(HLSEvent.PLAYBACK_COMPLETE, _completeHandler);
             _hls.addEventListener(HLSEvent.ERROR, _errorHandler);
-            _hls.addEventListener(HLSEvent.MANIFEST_LOADED, _manifestHandler);
+            _hls.addEventListener(HLSEvent.MANIFEST_LOADED, _manifestLoadedHandler);
             _hls.addEventListener(HLSEvent.MEDIA_TIME, _mediaTimeHandler);
-            _hls.addEventListener(HLSEvent.PLAYBACK_STATE, _stateHandler);
+            _hls.addEventListener(HLSEvent.PLAYBACK_STATE, _playbackStateHandler);
             _hls.addEventListener(HLSEvent.ID3_UPDATED, _ID3Handler);
 
             var cfg : Object = _model.config;
             for (var object : String in cfg) {
                 var subidx : int = object.indexOf("hls_");
                 if (subidx != -1) {
-                    Params2Settings.set(object.substr(4), cfg[object]);
+                    if(object.indexOf("jsloader")!=-1) {
+                            if(cfg[object] == true) {
+                            _hls.URLstream = JSURLStream as Class;
+                            _hls.URLloader = JSURLLoader as Class;
+                            }
+                        } else {
+                            Params2Settings.set(object.substr(4), cfg[object]);
+                        }
                 }
             }
 
@@ -93,14 +104,15 @@ package org.mangui.flowplayer {
         };
 
         private function _errorHandler(event : HLSEvent) : void {
+            _clip.dispatchError(ClipError.STREAM_LOAD_FAILED,event.error.toString());
         };
 
         private function _ID3Handler(event : HLSEvent) : void {
             _clip.dispatch(ClipEventType.NETSTREAM_EVENT, "onID3", event.ID3Data);
         };
 
-        private function _manifestHandler(event : HLSEvent) : void {
-            _duration = event.levels[_hls.startlevel].duration - _clip.start;
+        private function _manifestLoadedHandler(event : HLSEvent) : void {
+            _duration = event.levels[_hls.startLevel].duration - _clipStart;
             _isManifestLoaded = true;
             // only update duration if not capped
             if (!_durationCapped) {
@@ -121,7 +133,7 @@ package org.mangui.flowplayer {
             info.url = level.url;
             info.width = level.width;
             info.height = level.height;
-            info.isDefault = (i == _hls.startlevel);
+            info.isDefault = (i == _hls.startLevel);
             bitrates.push(info);
             }
             _clip.setCustomProperty("bitrates", bitrates);
@@ -130,7 +142,7 @@ package org.mangui.flowplayer {
             _clip.dispatch(ClipEventType.METADATA);
             _seekable = true;
             // real seek position : add clip.start offset. if not defined, use -1 to fix seeking issue on live playlist
-            _hls.stream.play(null, (_clip.start == 0) ? -1 : _clip.start);
+            _hls.stream.play(null, (_clip.start == 0) ? -1 : _clipStart);
             _clip.dispatch(ClipEventType.SEEK, 0);
             if (_pauseAfterStart) {
                 pause(new ClipEvent(ClipEventType.PAUSE));
@@ -138,17 +150,17 @@ package org.mangui.flowplayer {
         };
 
         private function _mediaTimeHandler(event : HLSEvent) : void {
-            _position = Math.max(0, event.mediatime.position - _clip.start) ;
-            _duration = event.mediatime.duration - _clip.start;
+            _duration = event.mediatime.duration - _clipStart;
             // only update duration if not capped
             if (!_durationCapped) {
-                _clip.duration = _duration;
-                _bufferedTime = Math.min(event.mediatime.buffer + _position, _duration);
+                if(_clip.duration != _duration) {
+                    _clip.duration = _duration;
+                    _clip.dispatch(ClipEventType.METADATA_CHANGED);
+                }
             } else {
                 // ensure capped duration is lt real one
                 _durationCapped = Math.min(_durationCapped, _duration);
-                _bufferedTime = Math.min(event.mediatime.buffer + _position, _durationCapped);
-                if (_durationCapped - _position <= 0.1) {
+                if (_durationCapped - time <= 0.1) {
                     // reach end of stream, stop playback and simulate complete event
                     _hls.stream.close();
                     _clip.dispatchBeforeEvent(new ClipEvent(ClipEventType.FINISH));
@@ -176,7 +188,7 @@ package org.mangui.flowplayer {
             }
         };
 
-        private function _stateHandler(event : HLSEvent) : void {
+        private function _playbackStateHandler(event : HLSEvent) : void {
             // CONFIG::LOGGING {
             // Log.txt("state:"+ event.state);
             // }
@@ -212,12 +224,11 @@ package org.mangui.flowplayer {
             _clip = clip;
             CONFIG::LOGGING {
                 Log.info("load()" + clip.completeUrl);
-                Log.info("clip.start:" + clip.start);
-                Log.info("clip.duration:" + clip.duration);
             }
             _hls.load(clip.completeUrl);
             _pauseAfterStart = pauseAfterStart;
             _durationCapped = clip.duration;
+            _clipStart = clip.start;
             clip.type = ClipType.VIDEO;
             clip.dispatch(ClipEventType.BEGIN);
             clip.setNetStream(_hls.stream);
@@ -257,7 +268,10 @@ package org.mangui.flowplayer {
             CONFIG::LOGGING {
                 Log.debug("attachStream()");
             }
-            Video(video).attachNetStream(_hls.stream);
+            if(_streamAttached == false) {
+                Video(video).attachNetStream(_hls.stream);
+                _streamAttached = true;
+            }
             return;
         }
 
@@ -285,7 +299,9 @@ package org.mangui.flowplayer {
                 Log.info("resume()");
             }
             _hls.stream.resume();
-            _clip.dispatch(ClipEventType.RESUME);
+            if (event) {
+                _clip.dispatch(ClipEventType.RESUME);
+            }
             return;
         }
 
@@ -308,13 +324,19 @@ package org.mangui.flowplayer {
          */
         public function seek(event : ClipEvent, seconds : Number) : void {
             CONFIG::LOGGING {
-                Log.info("seek()");
+                Log.info("seek(" + seconds + ")");
             }
-            // real seek position : add clip.start offset
-            _hls.stream.seek(seconds + _clip.start);
-            _position = seconds;
-            _bufferedTime = seconds;
-            _clip.dispatch(ClipEventType.SEEK, seconds);
+            if (Math.abs(time - seconds) > 0.2) {
+                // real seek position : add clip.start offset
+                _hls.stream.seek(seconds + _clipStart);
+            } else {
+                CONFIG::LOGGING {
+                    Log.warn("seek(" + seconds + ") to current position, discard");
+                }
+            }
+            if (event) {
+                _clip.dispatch(ClipEventType.SEEK, seconds);
+            }
             return;
         }
 
@@ -329,21 +351,34 @@ package org.mangui.flowplayer {
          * Current playhead time in seconds.
          */
         public function get time() : Number {
-            return _position;
+            var _time : Number = Math.max(0, _hls.position - _clipStart);
+            return _time;
         }
 
         /**
          * The point in timeline where the buffered data region begins, in seconds.
          */
         public function get bufferStart() : Number {
-            return 0;
+            var _bufferStart : Number;
+            if (!_durationCapped) {
+                _bufferStart = Math.min(_hls.position - _hls.stream.backBufferLength - _clipStart, _duration);
+            } else {
+                _bufferStart = Math.min(_hls.position - _hls.stream.backBufferLength - _clipStart, _durationCapped);
+            }
+            return Math.max(_bufferStart, 0);
         }
 
         /**
          * The point in timeline where the buffered data region ends, in seconds.
          */
         public function get bufferEnd() : Number {
-            return _bufferedTime;
+            var _bufferEnd : Number;
+            if (!_durationCapped) {
+                _bufferEnd = Math.min(_hls.stream.bufferLength + _hls.position - _clipStart, _duration);
+            } else {
+                _bufferEnd = Math.min(_hls.stream.bufferLength + _hls.position - _clipStart, _durationCapped);
+            }
+            return Math.max(_bufferEnd, 0);
         }
 
         /**

@@ -4,10 +4,9 @@
  package org.mangui.osmf.plugins.traits {
     import org.mangui.hls.HLS;
     import org.mangui.hls.event.HLSEvent;
-    import org.mangui.hls.model.Level;
     import org.osmf.traits.DynamicStreamTrait;
     import org.osmf.utils.OSMFStrings;
-    
+
     CONFIG::LOGGING {
     import org.mangui.hls.utils.Log;
     }
@@ -21,7 +20,7 @@
             }
             _hls = hls;
             _hls.addEventListener(HLSEvent.LEVEL_SWITCH, _levelSwitchHandler);
-            super(true, _hls.startlevel, hls.levels.length);
+            super(true, _hls.startLevel, hls.levels.length);
         }
 
         override public function dispose() : void {
@@ -60,12 +59,8 @@
             CONFIG::LOGGING {
             Log.debug("HLSDynamicStreamTrait:autoSwitchChangeStart:" + value);
             }
-            if (value == true && _hls.autolevel == false) {
-                _hls.level = -1;
-                // only seek if position is set
-                if (!isNaN(_hls.position)) {
-                    _hls.stream.seek(_hls.position);
-                }
+            if (value == true && _hls.autoLevel == false) {
+                _hls.nextLevel = -1;
             }
         }
 
@@ -74,7 +69,7 @@
             Log.debug("HLSDynamicStreamTrait:switchingChangeStart(newSwitching/index):" + newSwitching + "/" + index);
             }
             if (newSwitching) {
-                _hls.level = index;
+                _hls.currentLevel = index;
             }
         }
 
@@ -87,10 +82,5 @@
             setCurrentIndex(newLevel);
             setSwitching(false, newLevel);
         };
-		
-		/** Return the metadata for the current level **/
-		public function currentLevel():Level {
-			return _hls.levels[_hls.level];
-		}
     }
 }

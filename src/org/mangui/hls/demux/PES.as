@@ -1,15 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
- package org.mangui.hls.demux {
+package org.mangui.hls.demux {
     import flash.utils.ByteArray;
 
     /** Representation of a Packetized Elementary Stream. **/
     public class PES {
-        /** Is it AAC audio or AVC video. **/
-        public var audio : Boolean;
         /** The PES data (including headers). **/
         public var data : ByteArray;
+        /** PES prefix **/
+        public var prefix : uint;
         /** Start of the payload. **/
         public var payload : uint;
         /** Timestamp from the PTS header. **/
@@ -22,9 +22,8 @@
         public var payload_len : int;
 
         /** Save the first chunk of PES data. **/
-        public function PES(dat : ByteArray, aud : Boolean) {
+        public function PES(dat : ByteArray) {
             data = dat;
-            audio = aud;
             parse();
         };
 
@@ -32,14 +31,7 @@
         private function parse() : void {
             data.position = 0;
             // Start code prefix and packet ID.
-            var prefix : uint = data.readUnsignedInt();
-            /*Audio streams (0x1C0-0x1DF)
-            Video streams (0x1E0-0x1EF)
-            0x1BD is special case, could be audio or video (ffmpeg\libavformat\mpeg.c)
-             */
-            if ((audio && (prefix > 0x1df || prefix < 0x1c0 && prefix != 0x1bd)) || (!audio && prefix != 0x1e0 && prefix != 0x1ea && prefix != 0x1bd)) {
-                throw new Error("PES start code not found or not AAC/AVC: " + prefix);
-            }
+            prefix = data.readUnsignedInt();
             // read len
             len = data.readUnsignedShort();
             // Ignore marker bits.
@@ -80,7 +72,7 @@
             // Skip other header data and parse payload.
             data.position += length;
             payload = data.position;
-            if(len) {
+            if (len) {
                 payload_len = len - data.position + 6;
             } else {
                 payload_len = 0;

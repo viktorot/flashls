@@ -2,27 +2,30 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 package org.mangui.chromeless {
-    import org.mangui.hls.utils.Log;
-    import org.mangui.hls.utils.ScaleVideo;
-    import org.mangui.hls.model.AudioTrack;
-    import org.mangui.hls.HLSSettings;
-    import org.mangui.hls.event.HLSError;
-    import org.mangui.hls.event.HLSEvent;
-    import org.mangui.hls.HLS;
-
-    import flash.net.URLStream;
-
-    import org.mangui.hls.model.Level;
-
     import flash.display.*;
     import flash.events.*;
     import flash.external.ExternalInterface;
     import flash.geom.Rectangle;
-    import flash.media.Video;
     import flash.media.SoundTransform;
     import flash.media.StageVideo;
     import flash.media.StageVideoAvailability;
+    import flash.media.Video;
+    import flash.net.URLLoader;
+    import flash.net.URLStream;
+    import flash.system.Security;
+    import flash.utils.getTimer;
     import flash.utils.setTimeout;
+    import org.mangui.hls.event.HLSError;
+    import org.mangui.hls.event.HLSEvent;
+    import org.mangui.hls.HLS;
+    import org.mangui.hls.HLSSettings;
+    import org.mangui.hls.model.AudioTrack;
+    import org.mangui.hls.model.Level;
+    import org.mangui.hls.model.Stats;
+    import org.mangui.hls.utils.JSURLLoader;
+    import org.mangui.hls.utils.JSURLStream;
+    import org.mangui.hls.utils.Log;
+    import org.mangui.hls.utils.ScaleVideo;
 
     // import com.sociodox.theminer.*;
     public class ChromelessPlayer extends Sprite {
@@ -38,24 +41,31 @@ package org.mangui.chromeless {
         protected var _videoWidth : int = 0;
         protected var _videoHeight : int = 0;
         /** current media position */
-        protected var _media_position : Number;
+        protected var _mediaPosition : Number;
         protected var _duration : Number;
         /** URL autoload feature */
         protected var _autoLoad : Boolean = false;
 
+        protected var _callbackName : String;
+
         /** Initialization. **/
         public function ChromelessPlayer() {
+            Security.allowDomain("*");
+            Security.allowInsecureDomain("*");
+            ExternalInterface.marshallExceptions = true;
             _setupStage();
             _setupSheet();
             _setupExternalGetters();
             _setupExternalCallers();
+            _setupExternalCallback();
 
             setTimeout(_pingJavascript, 50);
         };
 
         protected function _setupExternalGetters() : void {
-            ExternalInterface.addCallback("getLevel", _getLevel);
-            ExternalInterface.addCallback("getPlaybackLevel", _getPlaybackLevel);
+            ExternalInterface.addCallback("getCurrentLevel", _getCurrentLevel);
+            ExternalInterface.addCallback("getNextLevel", _getNextLevel);
+            ExternalInterface.addCallback("getLoadLevel", _getLoadLevel);
             ExternalInterface.addCallback("getLevels", _getLevels);
             ExternalInterface.addCallback("getAutoLevel", _getAutoLevel);
             ExternalInterface.addCallback("getDuration", _getDuration);
@@ -66,11 +76,14 @@ package org.mangui.chromeless {
             ExternalInterface.addCallback("getmaxBufferLength", _getmaxBufferLength);
             ExternalInterface.addCallback("getminBufferLength", _getminBufferLength);
             ExternalInterface.addCallback("getlowBufferLength", _getlowBufferLength);
+            ExternalInterface.addCallback("getmaxBackBufferLength", _getmaxBackBufferLength);
             ExternalInterface.addCallback("getbufferLength", _getbufferLength);
+            ExternalInterface.addCallback("getbackBufferLength", _getbackBufferLength);
             ExternalInterface.addCallback("getLogDebug", _getLogDebug);
             ExternalInterface.addCallback("getLogDebug2", _getLogDebug2);
             ExternalInterface.addCallback("getUseHardwareVideoDecoder", _getUseHardwareVideoDecoder);
             ExternalInterface.addCallback("getCapLeveltoStage", _getCapLeveltoStage);
+            ExternalInterface.addCallback("getAutoLevelCapping", _getAutoLevelCapping);
             ExternalInterface.addCallback("getflushLiveURLCache", _getflushLiveURLCache);
             ExternalInterface.addCallback("getstartFromLevel", _getstartFromLevel);
             ExternalInterface.addCallback("getseekFromLowestLevel", _getseekFromLevel);
@@ -78,6 +91,7 @@ package org.mangui.chromeless {
             ExternalInterface.addCallback("getPlayerVersion", _getPlayerVersion);
             ExternalInterface.addCallback("getAudioTrackList", _getAudioTrackList);
             ExternalInterface.addCallback("getAudioTrackId", _getAudioTrackId);
+            ExternalInterface.addCallback("getStats", _getStats);
         };
 
         protected function _setupExternalCallers() : void {
@@ -88,20 +102,28 @@ package org.mangui.chromeless {
             ExternalInterface.addCallback("playerSeek", _seek);
             ExternalInterface.addCallback("playerStop", _stop);
             ExternalInterface.addCallback("playerVolume", _volume);
-            ExternalInterface.addCallback("playerSetLevel", _setLevel);
-            ExternalInterface.addCallback("playerSmoothSetLevel", _smoothSetLevel);
+            ExternalInterface.addCallback("playerSetCurrentLevel", _setCurrentLevel);
+            ExternalInterface.addCallback("playerSetNextLevel", _setNextLevel);
+            ExternalInterface.addCallback("playerSetLoadLevel", _setLoadLevel);
             ExternalInterface.addCallback("playerSetmaxBufferLength", _setmaxBufferLength);
             ExternalInterface.addCallback("playerSetminBufferLength", _setminBufferLength);
             ExternalInterface.addCallback("playerSetlowBufferLength", _setlowBufferLength);
+            ExternalInterface.addCallback("playerSetbackBufferLength", _setbackBufferLength);
             ExternalInterface.addCallback("playerSetflushLiveURLCache", _setflushLiveURLCache);
             ExternalInterface.addCallback("playerSetstartFromLevel", _setstartFromLevel);
             ExternalInterface.addCallback("playerSetseekFromLevel", _setseekFromLevel);
             ExternalInterface.addCallback("playerSetLogDebug", _setLogDebug);
             ExternalInterface.addCallback("playerSetLogDebug2", _setLogDebug2);
             ExternalInterface.addCallback("playerSetUseHardwareVideoDecoder", _setUseHardwareVideoDecoder);
+            ExternalInterface.addCallback("playerSetAutoLevelCapping", _setAutoLevelCapping);
             ExternalInterface.addCallback("playerCapLeveltoStage", _setCapLeveltoStage);
             ExternalInterface.addCallback("playerSetAudioTrack", _setAudioTrack);
             ExternalInterface.addCallback("playerSetJSURLStream", _setJSURLStream);
+        };
+
+        protected function _setupExternalCallback() : void {
+            // Pass in the JavaScript callback name in the `callback` FlashVars parameter.
+            _callbackName = LoaderInfo(this.root.loaderInfo).parameters.callback.toString();
         };
 
         protected function _setupStage() : void {
@@ -122,55 +144,57 @@ package org.mangui.chromeless {
             addChild(_sheet);
         }
 
+        protected function _trigger(event : String, ...args) : void {
+            if (ExternalInterface.available) {
+                ExternalInterface.call(_callbackName, event, args);
+            }
+        };
+
         /** Notify javascript the framework is ready. **/
         protected function _pingJavascript() : void {
-            ExternalInterface.call("onHLSReady", ExternalInterface.objectID);
+            _trigger("ready", getTimer());
         };
 
         /** Forward events from the framework. **/
         protected function _completeHandler(event : HLSEvent) : void {
-            if (ExternalInterface.available) {
-                ExternalInterface.call("onComplete");
-            }
+            _trigger("complete");
         };
 
         protected function _errorHandler(event : HLSEvent) : void {
-            if (ExternalInterface.available) {
-                var hlsError : HLSError = event.error;
-                ExternalInterface.call("onError", hlsError.code, hlsError.url, hlsError.msg);
-            }
+            var hlsError : HLSError = event.error;
+            _trigger("error", hlsError.code, hlsError.url, hlsError.msg);
+        };
+
+        protected function _levelLoadedHandler(event : HLSEvent) : void {
+            _trigger("levelLoaded", event.loadMetrics);
+        };
+
+        protected function _audioLevelLoadedHandler(event : HLSEvent) : void {
+            _trigger("audioLevelLoaded", event.loadMetrics);
         };
 
         protected function _fragmentLoadedHandler(event : HLSEvent) : void {
-            if (ExternalInterface.available) {
-                ExternalInterface.call("onFragmentLoaded", event.loadMetrics);
-            }
+            _trigger("fragmentLoaded", event.loadMetrics);
         };
 
         protected function _fragmentPlayingHandler(event : HLSEvent) : void {
-            if (ExternalInterface.available) {
-                ExternalInterface.call("onFragmentPlaying", event.playMetrics);
-            }
+            _trigger("fragmentPlaying", event.playMetrics);
         };
 
-        protected function _manifestHandler(event : HLSEvent) : void {
-            _duration = event.levels[_hls.startlevel].duration;
+        protected function _manifestLoadedHandler(event : HLSEvent) : void {
+            _duration = event.levels[_hls.startLevel].duration;
 
             if (_autoLoad) {
                 _play(-1);
             }
 
-            if (ExternalInterface.available) {
-                ExternalInterface.call("onManifest", _duration);
-            }
+            _trigger("manifest", _duration, event.levels, event.loadMetrics);
         };
 
         protected function _mediaTimeHandler(event : HLSEvent) : void {
             _duration = event.mediatime.duration;
-            _media_position = event.mediatime.position;
-            if (ExternalInterface.available) {
-                ExternalInterface.call("onPosition", event.mediatime);
-            }
+            _mediaPosition = event.mediatime.position;
+            _trigger("position", event.mediatime);
 
             var videoWidth : int = _video ? _video.videoWidth : _stageVideo.videoWidth;
             var videoHeight : int = _video ? _video.videoHeight : _stageVideo.videoHeight;
@@ -181,44 +205,46 @@ package org.mangui.chromeless {
                     _videoHeight = videoHeight;
                     _videoWidth = videoWidth;
                     _resize();
-                    if (ExternalInterface.available) {
-                        ExternalInterface.call("onVideoSize", _videoWidth, _videoHeight);
-                    }
+                    _trigger("videoSize", _videoWidth, _videoHeight);
                 }
             }
         };
 
-        protected function _stateHandler(event : HLSEvent) : void {
-            if (ExternalInterface.available) {
-                ExternalInterface.call("onState", event.state);
-            }
+        protected function _playbackStateHandler(event : HLSEvent) : void {
+            _trigger("state", event.state);
+        };
+
+        protected function _seekStateHandler(event : HLSEvent) : void {
+            _trigger("seekState", event.state);
         };
 
         protected function _levelSwitchHandler(event : HLSEvent) : void {
-            if (ExternalInterface.available) {
-                ExternalInterface.call("onSwitch", event.level);
-            }
+            _trigger("switch", event.level);
         };
 
         protected function _audioTracksListChange(event : HLSEvent) : void {
-            if (ExternalInterface.available) {
-                ExternalInterface.call("onAudioTracksListChange", _getAudioTrackList());
-            }
+            _trigger("audioTracksListChange", _getAudioTrackList());
         }
 
         protected function _audioTrackChange(event : HLSEvent) : void {
-            if (ExternalInterface.available) {
-                ExternalInterface.call("onAudioTrackChange", event.audioTrack);
-            }
+            _trigger("audioTrackChange", event.audioTrack);
+        }
+
+        protected function _id3Updated(event : HLSEvent) : void {
+            _trigger("id3Updated", event.ID3Data);
         }
 
         /** Javascript getters. **/
-        protected function _getLevel() : int {
-            return _hls.level;
+        protected function _getCurrentLevel() : int {
+            return _hls.currentLevel;
         };
 
-        protected function _getPlaybackLevel() : int {
-            return _hls.playbacklevel;
+        protected function _getNextLevel() : int {
+            return _hls.nextLevel;
+        };
+
+        protected function _getLoadLevel() : int {
+            return _hls.loadLevel;
         };
 
         protected function _getLevels() : Vector.<Level> {
@@ -226,7 +252,7 @@ package org.mangui.chromeless {
         };
 
         protected function _getAutoLevel() : Boolean {
-            return _hls.autolevel;
+            return _hls.autoLevel;
         };
 
         protected function _getDuration() : Number {
@@ -250,7 +276,11 @@ package org.mangui.chromeless {
         };
 
         protected function _getbufferLength() : Number {
-            return _hls.bufferLength;
+            return _hls.stream.bufferLength;
+        };
+
+        protected function _getbackBufferLength() : Number {
+            return _hls.stream.backBufferLength;
         };
 
         protected function _getmaxBufferLength() : Number {
@@ -263,6 +293,10 @@ package org.mangui.chromeless {
 
         protected function _getlowBufferLength() : Number {
             return HLSSettings.lowBufferLength;
+        };
+
+        protected function _getmaxBackBufferLength() : Number {
+            return HLSSettings.maxBackBufferLength;
         };
 
         protected function _getflushLiveURLCache() : Boolean {
@@ -293,12 +327,16 @@ package org.mangui.chromeless {
             return HLSSettings.capLevelToStage;
         };
 
+        protected function _getAutoLevelCapping() : int {
+            return _hls.autoLevelCapping;
+        };
+
         protected function _getJSURLStream() : Boolean {
             return (_hls.URLstream is JSURLStream);
         };
 
         protected function _getPlayerVersion() : Number {
-            return 2;
+            return 3;
         };
 
         protected function _getAudioTrackList() : Array {
@@ -312,6 +350,10 @@ package org.mangui.chromeless {
 
         protected function _getAudioTrackId() : int {
             return _hls.audioTrack;
+        };
+
+        protected function _getStats() : Stats {
+            return _hls.stats;
         };
 
         /** Javascript calls. **/
@@ -343,29 +385,32 @@ package org.mangui.chromeless {
             _hls.stream.soundTransform = new SoundTransform(percent / 100);
         };
 
-        protected function _setLevel(level : int) : void {
-            _smoothSetLevel(level);
-            if (!isNaN(_media_position) && level != -1) {
-                _hls.stream.seek(_media_position);
-            }
+        protected function _setCurrentLevel(level : int) : void {
+            _hls.currentLevel = level;
         };
 
-        protected function _smoothSetLevel(level : int) : void {
-            if (level != _hls.level) {
-                _hls.level = level;
-            }
+        protected function _setNextLevel(level : int) : void {
+            _hls.nextLevel = level;
         };
 
-        protected function _setmaxBufferLength(new_len : Number) : void {
-            HLSSettings.maxBufferLength = new_len;
+        protected function _setLoadLevel(level : int) : void {
+            _hls.loadLevel = level;
         };
 
-        protected function _setminBufferLength(new_len : Number) : void {
-            HLSSettings.minBufferLength = new_len;
+        protected function _setmaxBufferLength(newLen : Number) : void {
+            HLSSettings.maxBufferLength = newLen;
         };
 
-        protected function _setlowBufferLength(new_len : Number) : void {
-            HLSSettings.lowBufferLength = new_len;
+        protected function _setminBufferLength(newLen : Number) : void {
+            HLSSettings.minBufferLength = newLen;
+        };
+
+        protected function _setlowBufferLength(newLen : Number) : void {
+            HLSSettings.lowBufferLength = newLen;
+        };
+
+        protected function _setbackBufferLength(newLen : Number) : void {
+            HLSSettings.maxBackBufferLength = newLen;
         };
 
         protected function _setflushLiveURLCache(flushLiveURLCache : Boolean) : void {
@@ -396,19 +441,29 @@ package org.mangui.chromeless {
             HLSSettings.capLevelToStage = value;
         };
 
+        protected function _setAutoLevelCapping(value : int) : void {
+            _hls.autoLevelCapping = value;
+        };
+
         protected function _setJSURLStream(jsURLstream : Boolean) : void {
             if (jsURLstream) {
                 _hls.URLstream = JSURLStream as Class;
+                _hls.URLloader = JSURLLoader as Class;
+                if (_callbackName) {
+                    _hls.URLstream.externalCallback = _callbackName;
+                    _hls.URLloader.externalCallback = _callbackName;
+                }
             } else {
                 _hls.URLstream = URLStream as Class;
+                _hls.URLloader = URLLoader as Class;
             }
         };
 
         protected function _setAudioTrack(val : int) : void {
             if (val == _hls.audioTrack) return;
             _hls.audioTrack = val;
-            if (!isNaN(_media_position)) {
-                _hls.stream.seek(_media_position);
+            if (!isNaN(_mediaPosition)) {
+                _hls.stream.seek(_mediaPosition);
             }
         };
 
@@ -429,13 +484,17 @@ package org.mangui.chromeless {
             _hls.addEventListener(HLSEvent.PLAYBACK_COMPLETE, _completeHandler);
             _hls.addEventListener(HLSEvent.ERROR, _errorHandler);
             _hls.addEventListener(HLSEvent.FRAGMENT_LOADED, _fragmentLoadedHandler);
+            _hls.addEventListener(HLSEvent.AUDIO_LEVEL_LOADED, _audioLevelLoadedHandler);
+            _hls.addEventListener(HLSEvent.LEVEL_LOADED, _levelLoadedHandler);
             _hls.addEventListener(HLSEvent.FRAGMENT_PLAYING, _fragmentPlayingHandler);
-            _hls.addEventListener(HLSEvent.MANIFEST_LOADED, _manifestHandler);
+            _hls.addEventListener(HLSEvent.MANIFEST_LOADED, _manifestLoadedHandler);
             _hls.addEventListener(HLSEvent.MEDIA_TIME, _mediaTimeHandler);
-            _hls.addEventListener(HLSEvent.PLAYBACK_STATE, _stateHandler);
+            _hls.addEventListener(HLSEvent.PLAYBACK_STATE, _playbackStateHandler);
+            _hls.addEventListener(HLSEvent.SEEK_STATE, _seekStateHandler);
             _hls.addEventListener(HLSEvent.LEVEL_SWITCH, _levelSwitchHandler);
             _hls.addEventListener(HLSEvent.AUDIO_TRACKS_LIST_CHANGE, _audioTracksListChange);
-            _hls.addEventListener(HLSEvent.AUDIO_TRACK_CHANGE, _audioTrackChange);
+            _hls.addEventListener(HLSEvent.AUDIO_TRACK_SWITCH, _audioTrackChange);
+            _hls.addEventListener(HLSEvent.ID3_UPDATED, _id3Updated);
 
             if (available && stage.stageVideos.length > 0) {
                 _stageVideo = stage.stageVideos[0];

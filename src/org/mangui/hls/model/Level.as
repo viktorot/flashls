@@ -1,7 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
- package org.mangui.hls.model {
+package org.mangui.hls.model {
     CONFIG::LOGGING {
         import org.mangui.hls.utils.Log;
     }
@@ -18,11 +18,13 @@
         /** H264 codec signaled ? **/
         public var codec_h264 : Boolean;
         /** Level Bitrate. **/
-        public var bitrate : Number;
+        public var bitrate : uint;
         /** Level Name. **/
         public var name : String;
-        /** level index **/
+        /** level index (sorted by bitrate) **/
         public var index : int = 0;
+        /** level index (manifest order) **/
+        public var manifest_index : int = 0;
         /** video width (from playlist) **/
         public var width : int;
         /** video height (from playlist) **/
@@ -175,17 +177,28 @@
         public function updateFragments(_fragments : Vector.<Fragment>) : void {
             var idx_with_metrics : int = -1;
             var len : int = _fragments.length;
+            var continuity_offset : int;
             var frag : Fragment;
             // update PTS from previous fragments
             for (var i : int = 0; i < len; i++) {
                 frag = getFragmentfromSeqNum(_fragments[i].seqnum);
-                if (frag != null && !isNaN(frag.data.pts_start)) {
+                if (frag != null) {
+                    continuity_offset = frag.continuity - _fragments[i].continuity;
+                    if(!isNaN(frag.data.pts_start)) {
                     _fragments[i].data = frag.data;
                     idx_with_metrics = i;
+                    }
+                }
+            }
+            if(continuity_offset) {
+                CONFIG::LOGGING {
+                    Log.debug("updateFragments: discontinuity sliding from live playlist,take into account discontinuity drift:" + continuity_offset);
+                }
+                for (i = 0; i < len; i++) {
+                     _fragments[i].continuity+= continuity_offset;
                 }
             }
             updateFragmentsProgramDate(_fragments);
-
             fragments = _fragments;
 
             if (len > 0) {
@@ -245,7 +258,7 @@
                     /* normalize computed PTS value based on known PTS value.
                      * this is to avoid computing wrong fragment duration in case of PTS looping */
                     var from_pts : Number = PTS.normalize(frag_to.data.pts_start, frag_from.data.pts_start_computed);
-                    /* update fragment duration. 
+                    /* update fragment duration.
                     it helps to fix drifts between playlist reported duration and fragment real duration */
                     if (to_index > from_index) {
                         frag_from.duration = (frag_to.data.pts_start - from_pts) / 1000;
@@ -272,7 +285,7 @@
             }
         }
 
-        public function updateFragment(seqnum : Number, valid : Boolean, min_pts : Number = 0, max_pts : Number = 0) : Number {
+        public function updateFragment(seqnum : Number, valid : Boolean, min_pts : Number = 0, max_pts : Number = 0) : void {
             // CONFIG::LOGGING {
             // Log.info("updatePTS : seqnum/min/max:" + seqnum + '/' + min_pts + '/' + max_pts);
             // }
@@ -320,12 +333,10 @@
                     // }
                 }
                 duration = start_time_offset;
-                return frag.start_time;
             } else {
                 CONFIG::LOGGING {
                     Log.error("updateFragment:seqnum " + seqnum + " not found!");
                 }
-                return 0;
             }
         }
     }

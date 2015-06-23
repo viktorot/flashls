@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  package org.mangui.osmf.plugins.traits {
     import org.mangui.hls.HLS;
+    import org.mangui.hls.constant.HLSPlayStates;
     import org.mangui.hls.event.HLSEvent;
     import org.mangui.hls.stream.HLSNetStream;
     import org.osmf.traits.PlayState;
@@ -32,7 +33,7 @@
             _hls.removeEventListener(HLSEvent.PLAYBACK_COMPLETE, _playbackComplete);
             super.dispose();
         }
-	
+
         override protected function playStateChangeStart(newPlayState : String) : void {
             CONFIG::LOGGING {
             Log.info("HLSPlayTrait:playStateChangeStart:" + newPlayState);
@@ -51,9 +52,9 @@
                     break;
                 case PlayState.STOPPED:
                     streamStarted = false;
-					_hls.stream.close();
+                    _hls.stream.close();
                     break;
-				case HLSPlayState.STOPPED_FRAGMENT_LOAD:
+				case HLSPlayStates.STOPPED_FRAGMENT_LOAD:
 					streamStarted = false;
 					(_hls.stream as HLSNetStream).close2();
 					break;
@@ -61,7 +62,7 @@
         }
 		
 		public function stop2(): void {
-			playStateChangeStart(HLSPlayState.STOPPED_FRAGMENT_LOAD);
+			playStateChangeStart(HLSPlayStates.STOPPED_FRAGMENT_LOAD);
 		}
 
         /** playback complete handler **/

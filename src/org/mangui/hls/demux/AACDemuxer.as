@@ -1,7 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
- package org.mangui.hls.demux {
+package org.mangui.hls.demux {
     import org.mangui.hls.model.AudioTrack;
     import org.mangui.hls.flv.FLVTag;
 
@@ -10,7 +10,7 @@
     CONFIG::LOGGING {
         import org.mangui.hls.utils.Log;
     }
-    /** Constants and utilities for the AAC audio format, refer to 
+    /** Constants and utilities for the AAC audio format, refer to
      *  http://wiki.multimedia.cx/index.php?title=ADTS
      **/
     public class AACDemuxer implements Demuxer {
@@ -44,11 +44,11 @@
             _data = null;
         }
 
-        public function audio_expected() : Boolean {
+        public function get audioExpected() : Boolean {
             return true;
         }
 
-        public function video_expected() : Boolean {
+        public function get videoExpected() : Boolean {
             return false;
         }
 
@@ -201,15 +201,16 @@
                 if (overflow <= 0 ) {
                     // no overflow, Write raw AAC after last header.
                     frames.push(new AudioFrame(frame_start, frame_length, frame_length, samplerate));
-                } else {
-                    CONFIG::LOGGING {
+                }
+                CONFIG::LOGGING {
+                    if (overflow > 0) {
                         Log.debug2("ADTS overflow at the end of PES packet, missing " + overflow + " bytes to complete the ADTS frame");
                     }
                 }
-            } else if (frames.length == 0) {
-                null;
-                CONFIG::LOGGING {
-                    Log.warn("No ADTS headers found in this stream.");  
+            }
+            CONFIG::LOGGING {
+                if (!frame_start && frames.length == 0) {
+                    Log.warn("No ADTS headers found in this stream.");
                 }
             }
             adts.position = position;

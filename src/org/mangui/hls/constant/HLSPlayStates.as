@@ -14,5 +14,7 @@
         public static const PLAYING_BUFFERING : String = "PLAYING_BUFFERING";
         /** paused/buffering state (playback is paused, and buffer is in low condition) **/
         public static const PAUSED_BUFFERING : String = "PAUSED_BUFFERING";
+		/** stop loading fragments without closing the NetStream **/
+		public static var STOPPED_FRAGMENT_LOAD:String = "FRAGMENT_LOAD_STOPPED";
     }
 }
