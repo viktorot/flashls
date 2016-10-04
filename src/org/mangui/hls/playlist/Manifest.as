@@ -2,12 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 package org.mangui.hls.playlist {
-    import flash.events.*;
-    import flash.net.*;
+    import flash.events.Event;
+    import flash.events.IOErrorEvent;
+    import flash.events.ProgressEvent;
+    import flash.events.SecurityErrorEvent;
+    import flash.net.URLLoader;
+    import flash.net.URLRequest;
     import flash.utils.ByteArray;
     import flash.utils.Dictionary;
     import flash.utils.getTimer;
-    
+
     import org.mangui.hls.HLS;
     import org.mangui.hls.constant.HLSLoaderTypes;
     import org.mangui.hls.constant.HLSTypes;
@@ -17,6 +21,7 @@ package org.mangui.hls.playlist {
     import org.mangui.hls.model.Level;
     import org.mangui.hls.utils.DateUtil;
     import org.mangui.hls.utils.Hex;
+    import org.mangui.hls.utils.StringUtil;
 
     CONFIG::LOGGING {
         import org.mangui.hls.utils.Log;
@@ -124,7 +129,7 @@ package org.mangui.hls.playlist {
         /** loading complete handler **/
         private function _loadCompleteHandler(event : Event) : void {
             _metrics.loading_end_time = getTimer();
-            onLoadedData(String(_urlloader.data));
+            onLoadedData(StringUtil.toLF(String(_urlloader.data)));
         };
 
         private function onLoadedData(data : String) : void {
@@ -141,7 +146,7 @@ package org.mangui.hls.playlist {
         /** Extract fragments from playlist data. **/
         public static function getFragments(data : String, base : String, level : int) : Vector.<Fragment> {
             var fragments : Vector.<Fragment> = new Vector.<Fragment>();
-            var lines : Array = data.split("\n");
+            var lines : Vector.<String> = StringUtil.toLines(data);
             // fragment seqnum
             var seqnum : int = 0;
             // fragment start time (in sec)
@@ -306,13 +311,13 @@ package org.mangui.hls.playlist {
         };
 
         /** Extract levels from manifest data. **/
-        public static function extractLevels(data : String, base : String = '', filter : Boolean = false) : Vector.<Level> {
+        public static function extractLevels(data : String, base : String = '') : Vector.<Level> {
             var levels : Vector.<Level> = new Vector.<Level>();
             var bitrateDictionary : Dictionary = new Dictionary();
             var level : Level;
-            var lines : Array = data.split("\n");
+            var lines : Vector.<String> = StringUtil.toLines(data);
             var level_found : Boolean = false;
-			var level_hasVideo : Boolean = false;
+            var level_hasVideo : Boolean = false;
             var i : int = 0;
             while (i < lines.length) {
                 var line : String = lines[i++];
@@ -333,7 +338,7 @@ package org.mangui.hls.playlist {
                             var dim : Array = res.split('x');
                             level.width = parseInt(dim[0]);
                             level.height = parseInt(dim[1]);
-							level_hasVideo = true;
+              							level_hasVideo = true;
                         } else if (param.indexOf('CODECS') > -1) {
                             if (line.indexOf('avc1') > -1) {
                                 level.codec_h264 = true;
@@ -347,25 +352,31 @@ package org.mangui.hls.playlist {
                             }
                         } else if (param.indexOf('AUDIO') > -1) {
                             level.audio_stream_id = (param.split('=')[1] as String).replace(replacedoublequote, "").replace(trimwhitespace, "");
+                        } else if (param.indexOf('CLOSED-CAPTIONS') > -1) {
+                            level.closed_captions = (param.split('=')[1] as String).replace(replacedoublequote, "").replace(trimwhitespace, "");
                         } else if (param.indexOf('NAME') > -1) {
                             level.name = (param.split('=')[1] as String).replace(replacedoublequote, "");
                         }
                     }
                 } else if (level_found == true) {
-					if((filter && level_hasVideo) || !filter) {
-	                    if(!(level.bitrate in bitrateDictionary)) {
-	                        level.url = _extractURL(line, base);
-	                        level.manifest_index = levels.length;
-	                        levels.push(level);
-	                        bitrateDictionary[level.bitrate] = true;
-	                    } else {
-	                       CONFIG::LOGGING {
-	                            Log.debug("discard failover level with bitrate " + level.bitrate);
-	                        }
-	                    }
-	                    level_found = false;
-					}
-					level_hasVideo = false;
+                    if((filter && level_hasVideo) || !filter) {
+                      if(!(level.bitrate in bitrateDictionary)) {
+                          level.urls = new Vector.<String>();
+                          level.urls.push(_extractURL(line, base));
+                          level.manifest_index = levels.length;
+                          levels.push(level);
+                          bitrateDictionary[level.bitrate] = level;
+                      } else {
+                          level = bitrateDictionary[level.bitrate];
+                          var redundantURL:String = _extractURL(line, base);
+                          level.urls.push(redundantURL);
+                         CONFIG::LOGGING {
+                              Log.debug("found failover level with url " + redundantURL);
+                          }
+                      }
+                      level_found = false;
+                    }
+                    level_hasVideo = false;
                 }
             }
             levels.sort(compareLevel);
@@ -383,7 +394,7 @@ package org.mangui.hls.playlist {
         /** Extract Alternate Audio Tracks from manifest data. **/
         public static function extractAltAudioTracks(data : String, base : String = '') : Vector.<AltAudioTrack> {
             var altAudioTracks : Vector.<AltAudioTrack> = new Vector.<AltAudioTrack>();
-            var lines : Array = data.split("\n");
+            var lines : Vector.<String> = StringUtil.toLines(data);
             var i : int = 0;
             while (i < lines.length) {
                 var line : String = lines[i++];
@@ -486,7 +497,7 @@ package org.mangui.hls.playlist {
         };
 
         public static function getTargetDuration(data : String) : Number {
-            var lines : Array = data.split("\n");
+            var lines : Vector.<String> = StringUtil.toLines(data);
             var i : int = 0;
             var targetduration : Number = 0;
 

@@ -23,6 +23,7 @@
             }
             super();
             _hls = hls;
+            _hls.addEventListener(HLSEvent.PLAYBACK_STATE, _stateChangedHandler);
             _hls.addEventListener(HLSEvent.PLAYBACK_COMPLETE, _playbackComplete);
         }
 
@@ -30,20 +31,22 @@
             CONFIG::LOGGING {
             Log.debug("HLSPlayTrait:dispose");
             }
+            _hls.removeEventListener(HLSEvent.PLAYBACK_STATE, _stateChangedHandler);
             _hls.removeEventListener(HLSEvent.PLAYBACK_COMPLETE, _playbackComplete);
             super.dispose();
         }
 
-        override protected function playStateChangeStart(newPlayState : String) : void {
+        override protected function playStateChangeStart(newPlayState:String):void {
             CONFIG::LOGGING {
             Log.info("HLSPlayTrait:playStateChangeStart:" + newPlayState);
             }
-            switch(newPlayState) {
+            switch (newPlayState) {
                 case PlayState.PLAYING:
                     if (!streamStarted) {
                         _hls.stream.play();
                         streamStarted = true;
-                    } else {
+                    }
+                    else {
                         _hls.stream.resume();
                     }
                     break;
@@ -60,10 +63,25 @@
 					break;
             }
         }
-		
-		public function stop2(): void {
-			playStateChangeStart(HLSPlayStates.STOPPED_FRAGMENT_LOAD);
-		}
+
+        /** state changed handler **/
+        private function _stateChangedHandler(event:HLSEvent):void {
+            switch (event.state) {
+                case HLSPlayStates.PLAYING:
+                CONFIG::LOGGING {
+                    Log.debug("HLSPlayTrait:_stateChangedHandler:setBuffering(true)");
+                }
+                    if (!streamStarted) {
+                        streamStarted = true;
+                        play();
+                    }
+                default:
+            }
+        }
+
+        public function stop2(): void {
+          playStateChangeStart(HLSPlayStates.STOPPED_FRAGMENT_LOAD);
+        }
 
         /** playback complete handler **/
         private function _playbackComplete(event : HLSEvent) : void {

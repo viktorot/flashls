@@ -21,7 +21,6 @@ package org.mangui.chromeless {
     import org.mangui.hls.HLSSettings;
     import org.mangui.hls.model.AudioTrack;
     import org.mangui.hls.model.Level;
-    import org.mangui.hls.model.Stats;
     import org.mangui.hls.utils.JSURLLoader;
     import org.mangui.hls.utils.JSURLStream;
     import org.mangui.hls.utils.Log;
@@ -45,8 +44,10 @@ package org.mangui.chromeless {
         protected var _duration : Number;
         /** URL autoload feature */
         protected var _autoLoad : Boolean = false;
-
+        /* JS callback name */
         protected var _callbackName : String;
+        /* stats handler */
+        private var _statsHandler : StatsHandler;
 
         /** Initialization. **/
         public function ChromelessPlayer() {
@@ -169,6 +170,10 @@ package org.mangui.chromeless {
             _trigger("levelLoaded", event.loadMetrics);
         };
 
+        protected function _levelEndlistHandler(event : HLSEvent) : void {
+            _trigger("levelEndlist", event.level);
+        };
+
         protected function _audioLevelLoadedHandler(event : HLSEvent) : void {
             _trigger("audioLevelLoaded", event.loadMetrics);
         };
@@ -222,6 +227,18 @@ package org.mangui.chromeless {
             _trigger("switch", event.level);
         };
 
+        protected function _fpsDropHandler(event : HLSEvent) : void {
+            _trigger("fpsDrop", event.level);
+        };
+
+        protected function _fpsDropLevelCappingHandler(event : HLSEvent) : void {
+            _trigger("fpsDropLevelCapping", event.level);
+        };
+
+        protected function _fpsDropSmoothLevelSwitchHandler(event : HLSEvent) : void {
+            _trigger("fpsDropSmoothLevelSwitch");
+        };
+
         protected function _audioTracksListChange(event : HLSEvent) : void {
             _trigger("audioTracksListChange", _getAudioTrackList());
         }
@@ -233,6 +250,10 @@ package org.mangui.chromeless {
         protected function _id3Updated(event : HLSEvent) : void {
             _trigger("id3Updated", event.ID3Data);
         }
+
+        protected function _liveLoadingStalledHandler(event : HLSEvent) : void {
+            _trigger("liveLoadingStalled");
+        };
 
         /** Javascript getters. **/
         protected function _getCurrentLevel() : int {
@@ -352,8 +373,8 @@ package org.mangui.chromeless {
             return _hls.audioTrack;
         };
 
-        protected function _getStats() : Stats {
-            return _hls.stats;
+        protected function _getStats() : Object {
+            return _statsHandler.stats;
         };
 
         /** Javascript calls. **/
@@ -481,11 +502,16 @@ package org.mangui.chromeless {
             var available : Boolean = (event.availability == StageVideoAvailability.AVAILABLE);
             _hls = new HLS();
             _hls.stage = stage;
+            // set framerate to 60 fps
+            stage.frameRate = 60;
+            // set up stats handler
+            _statsHandler = new StatsHandler(_hls);
             _hls.addEventListener(HLSEvent.PLAYBACK_COMPLETE, _completeHandler);
             _hls.addEventListener(HLSEvent.ERROR, _errorHandler);
             _hls.addEventListener(HLSEvent.FRAGMENT_LOADED, _fragmentLoadedHandler);
             _hls.addEventListener(HLSEvent.AUDIO_LEVEL_LOADED, _audioLevelLoadedHandler);
             _hls.addEventListener(HLSEvent.LEVEL_LOADED, _levelLoadedHandler);
+            _hls.addEventListener(HLSEvent.LEVEL_ENDLIST, _levelEndlistHandler);
             _hls.addEventListener(HLSEvent.FRAGMENT_PLAYING, _fragmentPlayingHandler);
             _hls.addEventListener(HLSEvent.MANIFEST_LOADED, _manifestLoadedHandler);
             _hls.addEventListener(HLSEvent.MEDIA_TIME, _mediaTimeHandler);
@@ -495,10 +521,14 @@ package org.mangui.chromeless {
             _hls.addEventListener(HLSEvent.AUDIO_TRACKS_LIST_CHANGE, _audioTracksListChange);
             _hls.addEventListener(HLSEvent.AUDIO_TRACK_SWITCH, _audioTrackChange);
             _hls.addEventListener(HLSEvent.ID3_UPDATED, _id3Updated);
+            _hls.addEventListener(HLSEvent.FPS_DROP, _fpsDropHandler);
+            _hls.addEventListener(HLSEvent.FPS_DROP_LEVEL_CAPPING, _fpsDropLevelCappingHandler);
+            _hls.addEventListener(HLSEvent.FPS_DROP_SMOOTH_LEVEL_SWITCH, _fpsDropSmoothLevelSwitchHandler);
+            _hls.addEventListener(HLSEvent.LIVE_LOADING_STALLED, _liveLoadingStalledHandler);
 
             if (available && stage.stageVideos.length > 0) {
                 _stageVideo = stage.stageVideos[0];
-                _stageVideo.addEventListener(StageVideoEvent.RENDER_STATE, _onStageVideoStateChange)
+                _stageVideo.addEventListener(StageVideoEvent.RENDER_STATE, _onStageVideoStateChange);
                 _stageVideo.viewPort = new Rectangle(0, 0, stage.stageWidth, stage.stageHeight);
                 _stageVideo.attachNetStream(_hls.stream);
             } else {
