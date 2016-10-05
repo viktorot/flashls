@@ -311,7 +311,7 @@ package org.mangui.hls.playlist {
         };
 
         /** Extract levels from manifest data. **/
-        public static function extractLevels(data : String, base : String = '') : Vector.<Level> {
+        public static function extractLevels(data : String, base : String = '', filter : Boolean = false) : Vector.<Level> {
             var levels : Vector.<Level> = new Vector.<Level>();
             var bitrateDictionary : Dictionary = new Dictionary();
             var level : Level;

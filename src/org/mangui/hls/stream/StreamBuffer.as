@@ -155,7 +155,7 @@ package org.mangui.hls.stream {
                   if(position == -1) {
                     _seekPositionRequested = tmp;
                   } else {
-                    _seekPositionRequested = Math.min(position, maxLivePosition);
+                    _seekPositionRequested = Math.min(position, tmp);
                   }
                 }
 
