@@ -12,15 +12,15 @@ package org.mangui.hls.loader {
     import flash.utils.clearTimeout;
     import flash.utils.getTimer;
     import flash.utils.setTimeout;
-
+    
+    import org.mangui.hls.HLS;
+    import org.mangui.hls.HLSSettings;
     import org.mangui.hls.constant.HLSLoaderTypes;
     import org.mangui.hls.constant.HLSPlayStates;
     import org.mangui.hls.constant.HLSTypes;
     import org.mangui.hls.event.HLSError;
     import org.mangui.hls.event.HLSEvent;
     import org.mangui.hls.event.HLSLoadMetrics;
-    import org.mangui.hls.HLS;
-    import org.mangui.hls.HLSSettings;
     import org.mangui.hls.model.Fragment;
     import org.mangui.hls.model.Level;
     import org.mangui.hls.playlist.AltAudioTrack;
@@ -301,7 +301,7 @@ package org.mangui.hls.loader {
                         Log.debug("adaptive playlist:\n" + string);
                     }
                     // adaptative playlist, extract levels from playlist, get them and parse them
-                    _levels = Manifest.extractLevels(string, _url);
+                    _levels = Manifest.extractLevels(string, _url, HLSSettings.filterAudioOnly);
                     if (_levels.length) {
                         _metrics.parsing_end_time = getTimer();
                         _loadLevel = -1;

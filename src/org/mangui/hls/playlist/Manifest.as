@@ -327,6 +327,7 @@ package org.mangui.hls.playlist {
                 }
                 if (line.indexOf(LEVEL) == 0) {
                     level_found = true;
+					level_hasVideo = false;
                     level = new Level();
                     var params : Array = line.substr(LEVEL.length).split(',');
                     for (var j : int = 0; j < params.length; j++) {
@@ -338,7 +339,7 @@ package org.mangui.hls.playlist {
                             var dim : Array = res.split('x');
                             level.width = parseInt(dim[0]);
                             level.height = parseInt(dim[1]);
-              							level_hasVideo = true;
+							level_hasVideo = true;
                         } else if (param.indexOf('CODECS') > -1) {
                             if (line.indexOf('avc1') > -1) {
                                 level.codec_h264 = true;
@@ -370,13 +371,13 @@ package org.mangui.hls.playlist {
                           level = bitrateDictionary[level.bitrate];
                           var redundantURL:String = _extractURL(line, base);
                           level.urls.push(redundantURL);
-                         CONFIG::LOGGING {
+							CONFIG::LOGGING {
                               Log.debug("found failover level with url " + redundantURL);
                           }
                       }
                       level_found = false;
                     }
-                    level_hasVideo = false;
+					level_hasVideo = false;
                 }
             }
             levels.sort(compareLevel);
